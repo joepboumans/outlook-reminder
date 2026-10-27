@@ -30,7 +30,13 @@ if ! command -v uv >/dev/null 2>&1; then
         export PATH="$BIN_DIR:$PATH"
     else
         say "Installing uv for your user (https://docs.astral.sh/uv/)"
-        curl -LsSf https://astral.sh/uv/install.sh | sh
+        if command -v curl >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        elif command -v wget >/dev/null 2>&1; then
+            wget -qO- https://astral.sh/uv/install.sh | sh
+        else
+            die "neither curl nor wget is installed. Install uv (https://docs.astral.sh/uv/) or curl first."
+        fi
         export PATH="$BIN_DIR:$PATH"
     fi
 fi

@@ -43,8 +43,10 @@ class ReminderBoard:
         self._clock = clock
         self._meetings: list[Meeting] = []
         self._due: list[Reminder] = []
-        self._dismissed: set[str] = set()
-        self._snoozed_until: dict[str, datetime] = {}
+        # Snooze and Dismiss are kept per Meeting key together with the start they
+        # were made for, so moving the Meeting discards them.
+        self._dismissed: dict[str, datetime] = {}
+        self._snoozed: dict[str, tuple[datetime, datetime]] = {}  # key -> (start, until)
         self._last_read: datetime | None = None
 
     def refresh(self) -> bool:
@@ -61,7 +63,7 @@ class ReminderBoard:
             return False
         return True
 
-    def refresh_due(self) -> bool:
+    def calendar_read_due(self) -> bool:
         """True when the calendar should be read again."""
         return self._last_read is None or self._clock.now() - self._last_read >= POLL_INTERVAL
 
@@ -71,21 +73,30 @@ class ReminderBoard:
         Reads the calendar first when a read is due, unless read_calendar is False
         (the app reads it on a worker thread instead).
         """
-        if read_calendar and self.refresh_due():
+        if read_calendar and self.calendar_read_due():
             self.refresh()
         now = self._clock.now()
-        before = {r.meeting.key for r in self._due}
+        shown = {(r.meeting.key, r.meeting.start) for r in self._due}
         self._due = []
+        newly_due: list[Reminder] = []
         for reminder in self._reminders():
-            key = reminder.meeting.key
-            if reminder.due_at > now or key in self._dismissed:
+            m = reminder.meeting
+            if reminder.due_at > now or self._dismissed.get(m.key) == m.start:
                 continue
-            if key in self._snoozed_until:
-                if self._snoozed_until[key] > now:
+            already_shown = (m.key, m.start) in shown
+            snooze = self._snoozed.get(m.key)
+            if snooze is not None and snooze[0] == m.start:
+                if snooze[1] > now:
                     continue
-                del self._snoozed_until[key]
+                # The snooze ended: the Reminder is due again, even if the Meeting has ended.
+                del self._snoozed[m.key]
+            elif not already_shown and m.end <= now:
+                # A Reminder not shown yet is only shown while its Meeting has not ended.
+                continue
             self._due.append(reminder)
-        return [r for r in self._due if r.meeting.key not in before]
+            if not already_shown:
+                newly_due.append(reminder)
+        return newly_due
 
     def upcoming(self) -> list[Reminder]:
         """Reminders of the known Meetings that have not started yet, by due time."""
@@ -108,14 +119,16 @@ class ReminderBoard:
         return list(self._due)
 
     def dismiss(self, key: str) -> None:
-        self._dismissed.add(key)
+        for r in self._due:
+            if r.meeting.key == key:
+                self._dismissed[key] = r.meeting.start
         self._due = [r for r in self._due if r.meeting.key != key]
 
     def snooze(self, keys: list[str], choice: SnoozeChoice) -> None:
         now = self._clock.now()
         for r in self._due:
             if r.meeting.key in keys:
-                self._snoozed_until[r.meeting.key] = choice.until(now, r.meeting.start)
+                self._snoozed[r.meeting.key] = (r.meeting.start, choice.until(now, r.meeting.start))
         self._due = [r for r in self._due if r.meeting.key not in keys]
 
     def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]:
@@ -134,5 +147,5 @@ class ReminderBoard:
 
     def dismiss_all(self) -> None:
         for r in self._due:
-            self._dismissed.add(r.meeting.key)
+            self._dismissed[r.meeting.key] = r.meeting.start
         self._due = []

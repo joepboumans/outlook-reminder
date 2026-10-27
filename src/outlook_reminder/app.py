@@ -57,7 +57,7 @@ class ReminderApp(Adw.Application):
         return RemindersWindow(self, actions=self)
 
     def _on_timer(self) -> bool:
-        if self._board.refresh_due() and not self._reading:
+        if self._board.calendar_read_due() and not self._reading:
             self._read_calendar_in_background()
         self.on_newly_due(self._board.tick(read_calendar=False))
         self.update_window()
@@ -82,7 +82,7 @@ class ReminderApp(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def on_newly_due(self, reminders: list[Reminder]) -> None:
-        """One Reminder notification (and one chime) for each Reminder that just became due."""
+        """One Reminder notification for each Reminder that just became due, and one chime."""
         for reminder in reminders:
             self.send_notification(_notification_id(reminder.meeting.key), _notification(reminder))
         if reminders:

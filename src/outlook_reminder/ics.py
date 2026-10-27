@@ -110,7 +110,7 @@ def _key(event: icalendar.Component, recurring: set[str]) -> str:
 
 
 def _reminder_before(event: icalendar.Component, start: datetime, end: datetime) -> timedelta | None:
-    """The longest lead time of the event's alarms, or None when it has none."""
+    """The Reminder time from the event's earliest alarm, or None when it has no alarm."""
     leads: list[timedelta] = []
     for alarm in event.walk("VALARM"):
         trigger: Any = alarm.get("TRIGGER")

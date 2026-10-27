@@ -230,3 +230,35 @@ def test_a_reminder_that_stays_due_is_reported_only_once_across_reads_and_ticks(
         clock.advance(minutes=1)
         assert board.tick() == []
     assert [r.meeting.title for r in board.due] == ["New title"]
+
+
+def test_moving_a_meeting_discards_its_dismiss_and_gives_a_fresh_reminder():
+    board, clock, source = board_at(T0 - timedelta(minutes=10), meeting())
+    board.tick()
+    board.dismiss("m1")
+    source.calendar = [meeting(start=T0 + timedelta(minutes=5))]
+    clock.advance(minutes=5)
+    assert [r.meeting.key for r in board.tick()] == ["m1"]
+
+
+def test_moving_a_meeting_discards_its_snooze():
+    board, clock, source = board_at(T0 - timedelta(minutes=10), meeting())
+    board.tick()
+    board.snooze(["m1"], choice("4 hours"))
+    source.calendar = [meeting(start=T0 + timedelta(minutes=5))]
+    clock.advance(minutes=5)
+    assert [r.meeting.key for r in board.tick()] == ["m1"]
+
+
+def test_a_reminder_of_a_meeting_that_already_ended_is_not_shown():
+    board, _, _ = board_at(T0 + timedelta(hours=2), meeting())
+    assert board.tick() == []
+    assert due_keys(board) == []
+
+
+def test_a_shown_reminder_stays_after_its_meeting_ends_until_dismissed():
+    board, clock, _ = board_at(T0 - timedelta(minutes=10), meeting())
+    board.tick()
+    clock.advance(hours=1)
+    board.tick()
+    assert due_keys(board) == ["m1"]
