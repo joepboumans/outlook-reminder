@@ -1,0 +1,3 @@
+# Read the calendar through Microsoft Graph with our own app registration
+
+We read the user's work calendar through Microsoft Graph (delegated, read-only `Calendars.Read`) using an app registration made for this project, which the user's Microsoft 365 tenant has to approve. We picked it over GNOME Online Accounts + Evolution Data Server, which also needs an approved app ID but exposes less (no reliable reminder time, response status or Teams link) and adds a heavy dependency. We also picked it over a published ICS calendar link, which needs no approval but lags by hours, usually drops reminder times, and is often disabled by companies. The calendar source sits behind its own interface so an ICS reader can stand in while approval is pending.
