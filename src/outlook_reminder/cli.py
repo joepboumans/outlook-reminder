@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"outlook-reminder: {e}", file=sys.stderr)
         return 2
 
-    board = ReminderBoard(IcsSource(config.ics_url), SystemClock())
+    board = ReminderBoard(IcsSource(config.ics_url, me=config.email), SystemClock())
     if args.check:
         return _check(board)
 

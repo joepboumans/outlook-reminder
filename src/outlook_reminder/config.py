@@ -14,6 +14,8 @@ DEFAULT_CONFIG = """\
 # Published ICS link of your Outlook calendar
 # (Outlook on the web: Settings > Calendar > Shared calendars > Publish a calendar).
 ics_url = ""
+# Your work email address. Used to spot meetings you declined in the ICS feed.
+# email = "you@example.com"
 """
 
 
@@ -24,6 +26,7 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Config:
     ics_url: str
+    email: str | None = None
 
 
 def default_config_path() -> Path:
@@ -43,4 +46,5 @@ def load_config(path: Path) -> Config:
     ics_url = str(calendar.get("ics_url", "")).strip()
     if not ics_url:
         raise ConfigError(f"Set calendar.ics_url in {path} to your published ICS link.")
-    return Config(ics_url=ics_url)
+    email = str(calendar.get("email", "")).strip() or None
+    return Config(ics_url=ics_url, email=email)

@@ -29,3 +29,9 @@ def test_missing_ics_link_is_an_error(tmp_path):
 def test_invalid_toml_is_an_error(tmp_path):
     with pytest.raises(ConfigError):
         load_config(write(tmp_path, "[calendar\n"))
+
+
+def test_email_is_optional(tmp_path):
+    base = '[calendar]\nics_url = "https://example.com/cal.ics"\n'
+    assert load_config(write(tmp_path, base)).email is None
+    assert load_config(write(tmp_path, base + 'email = "me@example.com"\n')).email == "me@example.com"

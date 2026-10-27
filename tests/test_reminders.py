@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from fakes import FakeClock, FakeSource
 
-from outlook_reminder.model import Meeting
+from outlook_reminder.model import Meeting, Response
 from outlook_reminder.reminders import ReminderBoard
 
 T0 = datetime(2026, 10, 27, 9, 0, tzinfo=UTC)
@@ -103,3 +103,38 @@ def test_when_the_calendar_cannot_be_read_the_last_known_meetings_are_kept():
     source.unavailable = True
     clock.advance(minutes=5)
     assert [r.meeting.key for r in board.tick()] == ["m1"]
+
+
+def test_a_meeting_with_its_reminder_turned_off_gives_no_reminder():
+    board, _, _ = board_at(T0, meeting(reminder_off=True))
+    board.tick()
+    assert due_keys(board) == []
+
+
+def test_a_declined_meeting_gives_no_reminder():
+    board, _, _ = board_at(T0, meeting(response=Response.DECLINED))
+    board.tick()
+    assert due_keys(board) == []
+
+
+def test_a_cancelled_meeting_gives_no_reminder():
+    board, _, _ = board_at(T0, meeting(cancelled=True))
+    board.tick()
+    assert due_keys(board) == []
+
+
+def test_a_tentative_meeting_gives_a_reminder():
+    board, _, _ = board_at(T0, meeting(response=Response.TENTATIVE))
+    board.tick()
+    assert due_keys(board) == ["m1"]
+
+
+def test_an_all_day_event_gives_a_reminder_only_when_it_has_one_set():
+    day = datetime(2026, 10, 28, tzinfo=UTC)
+    board, _, _ = board_at(
+        day + timedelta(hours=1),
+        meeting("plain", start=day, minutes=24 * 60, all_day=True),
+        meeting("set", start=day, minutes=24 * 60, all_day=True, reminder_before=timedelta(hours=18)),
+    )
+    board.tick()
+    assert due_keys(board) == ["set"]

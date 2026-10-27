@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from .clock import Clock
-from .model import Meeting
+from .model import Meeting, Response
 from .source import CalendarSource, CalendarUnavailable
 
 log = logging.getLogger(__name__)
@@ -18,6 +18,16 @@ POLL_INTERVAL = timedelta(minutes=5)
 # Meetings still running, ahead far enough for long Reminder times.
 READ_BEHIND = timedelta(days=1)
 READ_AHEAD = timedelta(days=14)
+
+
+def is_silent(m: Meeting) -> bool:
+    """A Silent meeting never produces a Reminder."""
+    return (
+        m.reminder_off
+        or m.cancelled
+        or m.response is Response.DECLINED
+        or (m.all_day and m.reminder_before is None)
+    )
 
 
 @dataclass(frozen=True)
@@ -77,6 +87,8 @@ class ReminderBoard:
     def _reminders(self) -> list[Reminder]:
         reminders = []
         for m in sorted(self._meetings, key=lambda m: m.start):
+            if is_silent(m):
+                continue
             reminders.append(Reminder(m, m.start - (m.reminder_before or DEFAULT_REMINDER_TIME)))
         return reminders
 

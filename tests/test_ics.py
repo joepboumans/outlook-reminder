@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from outlook_reminder.ics import parse_ics
+from outlook_reminder.model import Response
 
 WINDOW = (datetime(2026, 10, 26, tzinfo=UTC), datetime(2026, 11, 2, tzinfo=UTC))
 
@@ -114,3 +115,63 @@ SUMMARY:Old
 DTSTART:20261001T090000Z
 DTEND:20261001T091500Z
 """) == []
+
+
+ALARM = """
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT15M
+END:VALARM
+"""
+
+
+def test_without_alarms_in_the_feed_reminders_are_left_on():
+    # Many published feeds drop all alarms, so a missing alarm says nothing.
+    [m] = parse("UID:a\nSUMMARY:A\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z")
+    assert not m.reminder_off
+
+
+def test_when_the_feed_carries_alarms_a_meeting_without_one_has_its_reminder_off():
+    with_alarm, without = parse(
+        "UID:a\nSUMMARY:A\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z" + ALARM,
+        "UID:b\nSUMMARY:B\nDTSTART:20261027T100000Z\nDTEND:20261027T103000Z",
+    )
+    assert not with_alarm.reminder_off
+    assert without.reminder_off
+
+
+def test_cancelled_status_and_outlook_canceled_prefix_mean_cancelled():
+    by_status, by_prefix, normal = parse(
+        "UID:a\nSUMMARY:A\nSTATUS:CANCELLED\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z",
+        "UID:b\nSUMMARY:Canceled: B\nDTSTART:20261027T100000Z\nDTEND:20261027T103000Z",
+        "UID:c\nSUMMARY:Cancellation policy\nDTSTART:20261027T110000Z\nDTEND:20261027T113000Z",
+    )
+    assert by_status.cancelled and by_prefix.cancelled
+    assert not normal.cancelled
+
+
+def test_the_users_response_comes_from_their_attendee_entry():
+    def response(lines: str, me: str | None = "me@example.com"):
+        [m] = parse_ics(calendar(
+            "UID:a\nSUMMARY:A\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z\n" + lines
+        ), *WINDOW, me=me)
+        return m.response
+
+    other = "ATTENDEE;PARTSTAT=ACCEPTED:mailto:other@example.com\n"
+    assert response(other + "ATTENDEE;PARTSTAT=DECLINED:mailto:ME@example.com") is Response.DECLINED
+    assert response(other + "ATTENDEE;PARTSTAT=TENTATIVE:mailto:me@example.com") is Response.TENTATIVE
+    assert response("ATTENDEE;PARTSTAT=ACCEPTED:mailto:me@example.com") is Response.ACCEPTED
+    assert response("ORGANIZER:mailto:me@example.com") is Response.ORGANIZER
+    assert response(other) is Response.NONE
+    assert response("ATTENDEE;PARTSTAT=DECLINED:mailto:me@example.com", me=None) is Response.NONE
+
+
+def test_outlook_tentative_busy_status_means_tentative():
+    [m] = parse("UID:a\nSUMMARY:A\nX-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z")
+    assert m.response is Response.TENTATIVE
+
+
+def test_all_day_events_are_marked_all_day():
+    [m] = parse("UID:a\nSUMMARY:Holiday\nDTSTART;VALUE=DATE:20261028\nDTEND;VALUE=DATE:20261029")
+    assert m.all_day
+    assert m.end - m.start == timedelta(days=1)
