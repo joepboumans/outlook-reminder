@@ -35,3 +35,9 @@ def test_email_is_optional(tmp_path):
     base = '[calendar]\nics_url = "https://example.com/cal.ics"\n'
     assert load_config(write(tmp_path, base)).email is None
     assert load_config(write(tmp_path, base + 'email = "me@example.com"\n')).email == "me@example.com"
+
+
+def test_chime_is_on_unless_muted(tmp_path):
+    base = '[calendar]\nics_url = "https://example.com/cal.ics"\n'
+    assert load_config(write(tmp_path, base)).chime is True
+    assert load_config(write(tmp_path, base + "[sound]\nchime = false\n")).chime is False

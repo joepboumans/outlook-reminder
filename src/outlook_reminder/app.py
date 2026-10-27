@@ -12,6 +12,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
+from .notification import notification_text, play_chime  # noqa: E402
 from .reminders import Reminder, ReminderBoard  # noqa: E402
 from .snooze import SnoozeChoice  # noqa: E402
 from .window import RemindersWindow  # noqa: E402
@@ -23,11 +24,13 @@ TICK_SECONDS = 10
 
 
 class ReminderApp(Adw.Application):
-    def __init__(self, board: ReminderBoard) -> None:
+    def __init__(self, board: ReminderBoard, chime: bool = True) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self._board = board
+        self._chime = chime
         self._window: RemindersWindow | None = None
         self._reading = False
+        self._notified: set[str] = set()
 
         show = Gio.SimpleAction.new("show-reminders", None)
         show.connect("activate", lambda *_: self._present())
@@ -79,11 +82,20 @@ class ReminderApp(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def on_newly_due(self, reminders: list[Reminder]) -> None:
+        """One Reminder notification (and one chime) for each Reminder that just became due."""
+        for reminder in reminders:
+            self.send_notification(_notification_id(reminder.meeting.key), _notification(reminder))
         if reminders:
+            if self._chime:
+                play_chime()
             self._present()
 
     def update_window(self) -> None:
         due = self._board.due
+        # Take back notifications of Reminders that were dismissed or snoozed.
+        for key in self._notified - {r.meeting.key for r in due}:
+            self.withdraw_notification(_notification_id(key))
+        self._notified = {r.meeting.key for r in due}
         if not due:
             if self._window is not None:
                 self._window.set_visible(False)
@@ -114,3 +126,17 @@ class ReminderApp(Adw.Application):
 
     def default_snooze(self, keys: list[str]) -> SnoozeChoice:
         return self._board.default_snooze(keys)
+
+
+def _notification_id(key: str) -> str:
+    return f"reminder-{key}"
+
+
+def _notification(reminder: Reminder) -> Gio.Notification:
+    title, body = notification_text(reminder)
+    notification = Gio.Notification.new(title)
+    notification.set_body(body)
+    notification.set_priority(Gio.NotificationPriority.HIGH)
+    # Clicking the notification brings the Reminders window forward.
+    notification.set_default_action("app.show-reminders")
+    return notification

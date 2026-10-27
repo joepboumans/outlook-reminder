@@ -220,3 +220,13 @@ def test_snooze_all_selected_and_dismiss_all():
     clock.advance(minutes=30)
     board.tick()
     assert due_keys(board) == []
+
+
+def test_a_reminder_that_stays_due_is_reported_only_once_across_reads_and_ticks():
+    board, clock, source = board_at(T0 - timedelta(minutes=15), meeting(title="Old title"))
+    assert len(board.tick()) == 1
+    source.calendar = [meeting(title="New title")]
+    for _ in range(12):
+        clock.advance(minutes=1)
+        assert board.tick() == []
+    assert [r.meeting.title for r in board.due] == ["New title"]

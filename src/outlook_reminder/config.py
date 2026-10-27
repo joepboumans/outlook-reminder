@@ -16,6 +16,10 @@ DEFAULT_CONFIG = """\
 ics_url = ""
 # Your work email address. Used to spot meetings you declined in the ICS feed.
 # email = "you@example.com"
+
+[sound]
+# Play a short chime with each reminder notification.
+chime = true
 """
 
 
@@ -27,6 +31,7 @@ class ConfigError(Exception):
 class Config:
     ics_url: str
     email: str | None = None
+    chime: bool = True
 
 
 def default_config_path() -> Path:
@@ -47,4 +52,7 @@ def load_config(path: Path) -> Config:
     if not ics_url:
         raise ConfigError(f"Set calendar.ics_url in {path} to your published ICS link.")
     email = str(calendar.get("email", "")).strip() or None
-    return Config(ics_url=ics_url, email=email)
+    chime = data.get("sound", {}).get("chime", True)
+    if not isinstance(chime, bool):
+        raise ConfigError(f"sound.chime in {path} must be true or false.")
+    return Config(ics_url=ics_url, email=email, chime=chime)

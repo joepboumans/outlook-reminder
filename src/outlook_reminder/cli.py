@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from .app import ReminderApp  # GTK is only needed for the desktop app
 
-    return ReminderApp(board).run([sys.argv[0]])
+    return ReminderApp(board, chime=config.chime).run([sys.argv[0]])
 
 
 def _check(board: ReminderBoard) -> int:
