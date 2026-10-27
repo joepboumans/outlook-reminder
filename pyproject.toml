@@ -1,0 +1,33 @@
+[project]
+name = "outlook-reminder"
+version = "0.1.0"
+description = "Outlook-style meeting reminders for a Microsoft 365 calendar on Linux"
+authors = [{ name = "Joep Boumans" }]
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "icalendar>=6.0",
+    "recurring-ical-events>=3.3",
+]
+
+[project.scripts]
+outlook-reminder = "outlook_reminder.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pyright>=1.1.380",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+# PyGObject comes from the system (python3-gi), so its imports are not resolvable here.
+reportMissingModuleSource = false
