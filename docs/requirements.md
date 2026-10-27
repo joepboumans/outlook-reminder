@@ -7,6 +7,7 @@ Agreed in the design session of 2026-10-27. Terms are defined in [CONTEXT.md](..
 - Ubuntu 26.04 LTS, GNOME on Wayland (the default session)
 - Python with GTK4 / libadwaita
 - Installed per user with `install.sh`; it starts on login through a systemd user service and restarts if it crashes
+- Managed with `uv` and with `pyproject.toml`
 
 ## Calendar
 
