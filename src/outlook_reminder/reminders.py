@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 from .clock import Clock
 from .model import Meeting, Response
+from .snooze import SNOOZE_CHOICES, SnoozeChoice, choice
 from .source import CalendarSource, CalendarUnavailable
 
 log = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class ReminderBoard:
         self._meetings: list[Meeting] = []
         self._due: list[Reminder] = []
         self._dismissed: set[str] = set()
+        self._snoozed_until: dict[str, datetime] = {}
         self._last_read: datetime | None = None
 
     def refresh(self) -> bool:
@@ -75,8 +77,14 @@ class ReminderBoard:
         before = {r.meeting.key for r in self._due}
         self._due = []
         for reminder in self._reminders():
-            if reminder.due_at <= now and reminder.meeting.key not in self._dismissed:
-                self._due.append(reminder)
+            key = reminder.meeting.key
+            if reminder.due_at > now or key in self._dismissed:
+                continue
+            if key in self._snoozed_until:
+                if self._snoozed_until[key] > now:
+                    continue
+                del self._snoozed_until[key]
+            self._due.append(reminder)
         return [r for r in self._due if r.meeting.key not in before]
 
     def upcoming(self) -> list[Reminder]:
@@ -102,3 +110,29 @@ class ReminderBoard:
     def dismiss(self, key: str) -> None:
         self._dismissed.add(key)
         self._due = [r for r in self._due if r.meeting.key != key]
+
+    def snooze(self, keys: list[str], choice: SnoozeChoice) -> None:
+        now = self._clock.now()
+        for r in self._due:
+            if r.meeting.key in keys:
+                self._snoozed_until[r.meeting.key] = choice.until(now, r.meeting.start)
+        self._due = [r for r in self._due if r.meeting.key not in keys]
+
+    def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]:
+        """The snooze choices that land in the future for every one of these Reminders."""
+        now = self._clock.now()
+        starts = [r.meeting.start for r in self._due if r.meeting.key in keys]
+        return [c for c in SNOOZE_CHOICES if all(c.until(now, start) > now for start in starts)]
+
+    def default_snooze(self, keys: list[str]) -> SnoozeChoice:
+        """'5 minutes before start' until the Meeting starts (or 0 minutes when that is past), then 5 minutes."""
+        offered = self.snooze_choices(keys)
+        for label in ("5 minutes before start", "0 minutes before start"):
+            if choice(label) in offered:
+                return choice(label)
+        return choice("5 minutes")
+
+    def dismiss_all(self) -> None:
+        for r in self._due:
+            self._dismissed.add(r.meeting.key)
+        self._due = []

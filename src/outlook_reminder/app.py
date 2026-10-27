@@ -13,6 +13,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
 from .reminders import Reminder, ReminderBoard  # noqa: E402
+from .snooze import SnoozeChoice  # noqa: E402
 from .window import RemindersWindow  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class ReminderApp(Adw.Application):
         return self._window
 
     def create_window(self) -> RemindersWindow:
-        return RemindersWindow(self, on_dismiss=self.dismiss)
+        return RemindersWindow(self, actions=self)
 
     def _on_timer(self) -> bool:
         if self._board.refresh_due() and not self._reading:
@@ -94,6 +95,22 @@ class ReminderApp(Adw.Application):
         if self._board.due:
             self.window.present()
 
-    def dismiss(self, key: str) -> None:
-        self._board.dismiss(key)
+    # Actions asked for by the Reminders window.
+    def dismiss(self, keys: list[str]) -> None:
+        for key in keys:
+            self._board.dismiss(key)
         self.update_window()
+
+    def dismiss_all(self) -> None:
+        self._board.dismiss_all()
+        self.update_window()
+
+    def snooze(self, keys: list[str], choice: SnoozeChoice) -> None:
+        self._board.snooze(keys, choice)
+        self.update_window()
+
+    def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]:
+        return self._board.snooze_choices(keys)
+
+    def default_snooze(self, keys: list[str]) -> SnoozeChoice:
+        return self._board.default_snooze(keys)
