@@ -150,6 +150,11 @@ def test_cancelled_status_and_outlook_canceled_prefix_mean_cancelled():
     assert not normal.cancelled
 
 
+def test_dutch_outlook_geannuleerd_prefix_means_cancelled():
+    [m] = parse("UID:a\nSUMMARY:Geannuleerd: Overleg\nDTSTART:20261027T090000Z\nDTEND:20261027T093000Z")
+    assert m.cancelled
+
+
 def test_the_users_response_comes_from_their_attendee_entry():
     def response(lines: str, me: str | None = "me@example.com"):
         [m] = parse_ics(calendar(

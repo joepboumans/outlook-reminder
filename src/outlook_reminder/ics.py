@@ -16,7 +16,8 @@ from .source import CalendarUnavailable
 FETCH_TIMEOUT_SECONDS = 30
 
 
-CANCELLED_PREFIXES = ("canceled:", "cancelled:")
+# Outlook prefixes the title of a cancelled meeting, in the language of the organizer's Outlook.
+CANCELLED_PREFIXES = ("canceled:", "cancelled:", "geannuleerd:")
 
 
 def parse_ics(text: str, start: datetime, end: datetime, me: str | None = None) -> list[Meeting]:
