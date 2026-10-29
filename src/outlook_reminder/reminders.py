@@ -10,6 +10,7 @@ from .clock import Clock
 from .model import Meeting, Response
 from .snooze import SNOOZE_CHOICES, SnoozeChoice, choice
 from .source import CalendarSource, CalendarUnavailable
+from .state import Dismissed, MemoryStateStore, Snoozed, StateStore
 
 log = logging.getLogger(__name__)
 
@@ -38,15 +39,15 @@ class Reminder:
 
 
 class ReminderBoard:
-    def __init__(self, source: CalendarSource, clock: Clock) -> None:
+    def __init__(self, source: CalendarSource, clock: Clock, store: StateStore | None = None) -> None:
         self._source = source
         self._clock = clock
+        self._store = store or MemoryStateStore()
         self._meetings: list[Meeting] = []
         self._due: list[Reminder] = []
         # Snooze and Dismiss are kept per Meeting key together with the start they
         # were made for, so moving the Meeting discards them.
-        self._dismissed: dict[str, datetime] = {}
-        self._snoozed: dict[str, tuple[datetime, datetime]] = {}  # key -> (start, until)
+        self._state = self._store.load()
         self._last_read: datetime | None = None
 
     def refresh(self) -> bool:
@@ -67,6 +68,10 @@ class ReminderBoard:
         """True when the calendar should be read again."""
         return self._last_read is None or self._clock.now() - self._last_read >= POLL_INTERVAL
 
+    def read_soon(self) -> None:
+        """Make the next tick read the calendar, without waiting for the 5-minute poll."""
+        self._last_read = None
+
     def tick(self, read_calendar: bool = True) -> list[Reminder]:
         """Re-evaluate against the clock; returns the Reminders that just became due.
 
@@ -79,24 +84,44 @@ class ReminderBoard:
         shown = {(r.meeting.key, r.meeting.start) for r in self._due}
         self._due = []
         newly_due: list[Reminder] = []
+        dismissed, snoozed = self._state.dismissed, self._state.snoozed
+        changed = False
         for reminder in self._reminders():
             m = reminder.meeting
-            if reminder.due_at > now or self._dismissed.get(m.key) == m.start:
+            dismiss = dismissed.get(m.key)
+            if reminder.due_at > now or (dismiss is not None and dismiss.start == m.start):
                 continue
             already_shown = (m.key, m.start) in shown
-            snooze = self._snoozed.get(m.key)
-            if snooze is not None and snooze[0] == m.start:
-                if snooze[1] > now:
+            snooze = snoozed.get(m.key)
+            if snooze is not None and snooze.start == m.start:
+                if snooze.until > now:
                     continue
                 # The snooze ended: the Reminder is due again, even if the Meeting has ended.
-                del self._snoozed[m.key]
+                del snoozed[m.key]
+                changed = True
             elif not already_shown and m.end <= now:
                 # A Reminder not shown yet is only shown while its Meeting has not ended.
                 continue
             self._due.append(reminder)
             if not already_shown:
                 newly_due.append(reminder)
+        if self._clean_up(now) or changed:
+            self._save()
         return newly_due
+
+    def _clean_up(self, now: datetime) -> bool:
+        """Forget Snoozes and Dismisses that can no longer matter. Returns whether anything went."""
+        st = self._state
+        old_dismissed = [k for k, d in st.dismissed.items() if d.end <= now]
+        old_snoozed = [k for k, s in st.snoozed.items() if s.end <= now and s.until <= now]
+        for k in old_dismissed:
+            del st.dismissed[k]
+        for k in old_snoozed:
+            del st.snoozed[k]
+        return bool(old_dismissed or old_snoozed)
+
+    def _save(self) -> None:
+        self._store.save(self._state)
 
     def upcoming(self) -> list[Reminder]:
         """Reminders of the known Meetings that have not started yet, by due time."""
@@ -119,17 +144,16 @@ class ReminderBoard:
         return list(self._due)
 
     def dismiss(self, key: str) -> None:
-        for r in self._due:
-            if r.meeting.key == key:
-                self._dismissed[key] = r.meeting.start
-        self._due = [r for r in self._due if r.meeting.key != key]
+        self._dismiss([r for r in self._due if r.meeting.key == key])
 
     def snooze(self, keys: list[str], choice: SnoozeChoice) -> None:
         now = self._clock.now()
         for r in self._due:
-            if r.meeting.key in keys:
-                self._snoozed[r.meeting.key] = (r.meeting.start, choice.until(now, r.meeting.start))
+            m = r.meeting
+            if m.key in keys:
+                self._state.snoozed[m.key] = Snoozed(m.start, m.end, choice.until(now, m.start))
         self._due = [r for r in self._due if r.meeting.key not in keys]
+        self._save()
 
     def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]:
         """The snooze choices that land in the future for every one of these Reminders."""
@@ -146,6 +170,11 @@ class ReminderBoard:
         return choice("5 minutes")
 
     def dismiss_all(self) -> None:
-        for r in self._due:
-            self._dismissed[r.meeting.key] = r.meeting.start
-        self._due = []
+        self._dismiss(list(self._due))
+
+    def _dismiss(self, reminders: list[Reminder]) -> None:
+        for r in reminders:
+            self._state.dismissed[r.meeting.key] = Dismissed(r.meeting.start, r.meeting.end)
+            self._state.snoozed.pop(r.meeting.key, None)
+        self._due = [r for r in self._due if r not in reminders]
+        self._save()

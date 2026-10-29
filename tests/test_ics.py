@@ -180,3 +180,60 @@ def test_all_day_events_are_marked_all_day():
     [m] = parse("UID:a\nSUMMARY:Holiday\nDTSTART;VALUE=DATE:20261028\nDTEND;VALUE=DATE:20261029")
     assert m.all_day
     assert m.end - m.start == timedelta(days=1)
+
+
+TEAMS = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjM0%40thread.v2/0?context=%7b%22Tid%22%3a%2272f9%22%7d"
+
+
+def test_the_teams_link_comes_from_outlooks_teams_property():
+    [m] = parse(f"""
+UID:abc
+SUMMARY:Sync
+DTSTART:20261027T090000Z
+DTEND:20261027T093000Z
+X-MICROSOFT-SKYPETEAMSMEETINGURL:{TEAMS}
+""")
+    assert m.teams_url == TEAMS
+
+
+def test_the_teams_link_is_found_in_the_description():
+    [m] = parse(f"""
+UID:abc
+SUMMARY:Sync
+DTSTART:20261027T090000Z
+DTEND:20261027T093000Z
+LOCATION:Microsoft Teams Meeting
+DESCRIPTION:Microsoft Teams meeting\\nClick here to join the meeting<{TEAMS}>\\nMeeting ID: 1
+""")
+    assert m.teams_url == TEAMS
+    assert m.location == "Microsoft Teams Meeting"
+
+
+def test_the_teams_link_is_found_in_the_location_or_url():
+    [in_location, in_url] = parse(f"""
+UID:a
+SUMMARY:A
+DTSTART:20261027T090000Z
+DTEND:20261027T093000Z
+LOCATION:{TEAMS}
+""", f"""
+UID:b
+SUMMARY:B
+DTSTART:20261027T100000Z
+DTEND:20261027T103000Z
+URL:{TEAMS}
+""")
+    assert in_location.teams_url == TEAMS
+    assert in_url.teams_url == TEAMS
+
+
+def test_a_meeting_without_a_teams_link_has_none():
+    [m] = parse("""
+UID:abc
+SUMMARY:Lunch
+LOCATION:Canteen
+DESCRIPTION:See https://example.com/menu
+DTSTART:20261027T120000Z
+DTEND:20261027T130000Z
+""")
+    assert m.teams_url is None

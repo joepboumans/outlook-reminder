@@ -26,6 +26,7 @@ class Actions(Protocol):
     def snooze(self, keys: list[str], choice: SnoozeChoice) -> None: ...
     def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]: ...
     def default_snooze(self, keys: list[str]) -> SnoozeChoice: ...
+    def join(self, key: str) -> None: ...
 
 
 class SnoozePicker(Gtk.Box):
@@ -93,6 +94,10 @@ class ReminderRow(Gtk.ListBoxRow):
         self.snooze = SnoozePicker("Snooze", lambda c: actions.snooze([self.key], c))
         self.snooze.set_hexpand(True)
         self.actions.append(self.snooze)
+        # Only shown for Meetings with a Teams link.
+        self.join = Gtk.Button(label="Join", css_classes=["suggested-action"])
+        self.join.connect("clicked", lambda *_: actions.join(self.key))
+        self.actions.append(self.join)
         dismiss = Gtk.Button(label="Dismiss")
         dismiss.connect("clicked", lambda *_: actions.dismiss([self.key]))
         self.actions.append(dismiss)
@@ -108,6 +113,7 @@ class ReminderRow(Gtk.ListBoxRow):
         self._when.set_label(when if m.all_day else f"{when} · {describe_start(m.start, now)}")
         self._where.set_label(m.location)
         self._where.set_visible(bool(m.location))
+        self.join.set_visible(m.teams_url is not None)
         keys = [self.key]
         self.snooze.set_choices(self._actions.snooze_choices(keys), self._actions.default_snooze(keys))
 

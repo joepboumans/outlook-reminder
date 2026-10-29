@@ -22,6 +22,11 @@ def notification_text(reminder: Reminder) -> tuple[str, str]:
     return m.title, " · ".join(part for part in (when, m.location) if part)
 
 
+def has_join(reminder: Reminder) -> bool:
+    """The Reminder notification and the Reminders window offer Join only with a Teams link."""
+    return reminder.meeting.teams_url is not None
+
+
 def play_chime() -> None:
     """Play a short chime without blocking. Silently does nothing when no player is installed."""
     if shutil.which("canberra-gtk-play"):

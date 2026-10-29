@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 
 import gi
 
@@ -12,15 +13,18 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
-from .notification import notification_text, play_chime  # noqa: E402
+from .notification import has_join, notification_text, play_chime  # noqa: E402
 from .reminders import Reminder, ReminderBoard  # noqa: E402
 from .snooze import SnoozeChoice  # noqa: E402
+from .teams import msteams_uri  # noqa: E402
 from .window import RemindersWindow  # noqa: E402
 
 log = logging.getLogger(__name__)
 
 APP_ID = "io.github.joepboumans.OutlookReminder"
 TICK_SECONDS = 10
+# A gap this much longer than a tick between two timer runs means the laptop slept.
+SLEEP_GAP_SECONDS = 60
 
 
 class ReminderApp(Adw.Application):
@@ -31,10 +35,14 @@ class ReminderApp(Adw.Application):
         self._window: RemindersWindow | None = None
         self._reading = False
         self._notified: set[str] = set()
+        self._last_timer = time.time()
 
         show = Gio.SimpleAction.new("show-reminders", None)
         show.connect("activate", lambda *_: self._present())
         self.add_action(show)
+        join = Gio.SimpleAction.new("join", GLib.VariantType.new("s"))
+        join.connect("activate", lambda _action, key: self.join(key.get_string()))
+        self.add_action(join)
 
     # The app runs in the background with no window until a Reminder is due.
     def do_startup(self) -> None:
@@ -42,6 +50,35 @@ class ReminderApp(Adw.Application):
         self.hold()
         GLib.timeout_add_seconds(TICK_SECONDS, self._on_timer)
         GLib.idle_add(self._on_timer)
+        self._watch_resume_and_network()
+
+    def _watch_resume_and_network(self) -> None:
+        """Read the calendar right after resume from sleep and after a network change."""
+        Gio.NetworkMonitor.get_default().connect("network-changed", lambda *_: self._read_soon("network change"))
+        try:
+            system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        except GLib.Error as e:
+            log.info("No system bus, resume is only noticed by the clock jump: %s", e.message)
+            return
+        self._system_bus = system_bus
+        system_bus.signal_subscribe(
+            "org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
+            "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, self._on_prepare_for_sleep,
+        )
+
+    def _on_prepare_for_sleep(self, _conn, _sender, _path, _iface, _signal, params) -> None:
+        going_to_sleep = params.unpack()[0]
+        if not going_to_sleep:
+            self._read_soon("resume")
+
+    def _read_soon(self, why: str) -> None:
+        log.debug("Reading the calendar after %s", why)
+        self._board.read_soon()
+        GLib.idle_add(self._on_timer_once)
+
+    def _on_timer_once(self) -> bool:
+        self._on_timer()
+        return GLib.SOURCE_REMOVE
 
     def do_activate(self) -> None:
         if self._board.due:
@@ -57,6 +94,11 @@ class ReminderApp(Adw.Application):
         return RemindersWindow(self, actions=self)
 
     def _on_timer(self) -> bool:
+        # GLib timers stop during suspend, so a jump in wall-clock time means we just woke up.
+        wall = time.time()
+        if wall - self._last_timer > SLEEP_GAP_SECONDS:
+            self._board.read_soon()
+        self._last_timer = wall
         if self._board.calendar_read_due() and not self._reading:
             self._read_calendar_in_background()
         self.on_newly_due(self._board.tick(read_calendar=False))
@@ -127,6 +169,17 @@ class ReminderApp(Adw.Application):
     def default_snooze(self, keys: list[str]) -> SnoozeChoice:
         return self._board.default_snooze(keys)
 
+    def join(self, key: str) -> None:
+        url = next((r.meeting.teams_url for r in self._board.due if r.meeting.key == key), None)
+        if url is None:
+            return
+        # Teams for Linux registers the msteams: scheme; without it, use the browser.
+        uri = msteams_uri(url) if Gio.AppInfo.get_default_for_uri_scheme("msteams") else url
+        try:
+            Gio.AppInfo.launch_default_for_uri(uri, None)
+        except GLib.Error as e:
+            log.warning("Could not open the Teams meeting %s: %s", uri, e.message)
+
 
 def _notification_id(key: str) -> str:
     return f"reminder-{key}"
@@ -139,4 +192,6 @@ def _notification(reminder: Reminder) -> Gio.Notification:
     notification.set_priority(Gio.NotificationPriority.HIGH)
     # Clicking the notification brings the Reminders window forward.
     notification.set_default_action("app.show-reminders")
+    if has_join(reminder):
+        notification.add_button_with_target("Join", "app.join", GLib.Variant.new_string(reminder.meeting.key))
     return notification

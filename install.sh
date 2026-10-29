@@ -65,9 +65,49 @@ EOF
 
 "$VENV/bin/outlook-reminder" --init-config
 
+# Start on login: a systemd user service tied to the graphical session (the
+# Reminders window needs it), restarted when it crashes. The unit name is always
+# the same, so running install.sh again only updates it.
+say "Setting up start on login"
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$UNIT_DIR"
+cat > "$UNIT_DIR/outlook-reminder.service" <<EOF
+[Unit]
+Description=Outlook-style meeting reminders
+PartOf=graphical-session.target
+After=graphical-session.target
+# Stop retrying after 5 crashes in a minute.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+ExecStart=$VENV/bin/outlook-reminder
+Restart=on-failure
+RestartSec=5
+# Exit code 2 is a config problem; restarting won't fix it.
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+SERVICE_OK=0
+if systemctl --user daemon-reload 2>/dev/null; then
+    systemctl --user enable --quiet outlook-reminder.service
+    # On an upgrade, restart a running copy so it runs the new version.
+    systemctl --user try-restart outlook-reminder.service || true
+    SERVICE_OK=1
+else
+    echo "Note: could not reach your systemd user session, so the app won't start on login yet. Run ./install.sh again from your desktop session."
+fi
+
 say "Done."
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "Note: $BIN_DIR is not on your PATH yet; log out and in, or run $BIN_DIR/outlook-reminder." ;;
 esac
-echo "Put your ICS link in ${XDG_CONFIG_HOME:-$HOME/.config}/outlook-reminder/config.toml, then start the app with: outlook-reminder"
+echo "Put your ICS link in ${XDG_CONFIG_HOME:-$HOME/.config}/outlook-reminder/config.toml."
+if [[ $SERVICE_OK == 1 ]]; then
+    echo "The app starts by itself from your next login. To start it now: systemctl --user start outlook-reminder"
+else
+    echo "Then start the app with: outlook-reminder"
+fi
