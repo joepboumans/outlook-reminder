@@ -27,6 +27,10 @@ class Actions(Protocol):
     def snooze_choices(self, keys: list[str]) -> list[SnoozeChoice]: ...
     def default_snooze(self, keys: list[str]) -> SnoozeChoice: ...
     def join(self, key: str) -> None: ...
+    def sign_in(self) -> None: ...
+
+
+SIGN_IN_TITLE = "Sign in to keep getting reminders"
 
 
 class SnoozePicker(Gtk.Box):
@@ -134,7 +138,7 @@ class RemindersWindow(Adw.ApplicationWindow):
         self.list.connect("selected-rows-changed", lambda *_: self._update_bottom())
         scroller = Gtk.ScrolledWindow(vexpand=True, child=self.list)
 
-        bottom = Gtk.Box(spacing=6)
+        self.bottom = bottom = Gtk.Box(spacing=6)
         bottom.set_margin_bottom(12)
         bottom.set_margin_start(12)
         bottom.set_margin_end(12)
@@ -148,7 +152,14 @@ class RemindersWindow(Adw.ApplicationWindow):
         )
         bottom.append(self.snooze_selected)
 
+        # The entry shown while the Microsoft 365 sign-in has expired.
+        self.sign_in_banner = Adw.Banner(title=SIGN_IN_TITLE, button_label="Sign in", revealed=False)
+        self.sign_in_banner.connect("button-clicked", lambda *_: actions.sign_in())
+        self.list.set_placeholder(Gtk.Label(label="No reminders due", css_classes=["dim-label"],
+                                            margin_top=24, margin_bottom=24))
+
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content.append(self.sign_in_banner)
         content.append(scroller)
         content.append(bottom)
 
@@ -158,6 +169,16 @@ class RemindersWindow(Adw.ApplicationWindow):
 
     def make_row(self, reminder: Reminder) -> ReminderRow:
         return ReminderRow(reminder, self._actions)
+
+    def show_sign_in(self, needed: bool, signing_in: bool = False) -> None:
+        """Show or hide the sign-in entry; while the browser sign-in runs, say so."""
+        self.sign_in_banner.set_revealed(needed)
+        if signing_in:
+            self.sign_in_banner.set_title("Complete the sign-in in your browser")
+            self.sign_in_banner.set_button_label(None)
+        else:
+            self.sign_in_banner.set_title(SIGN_IN_TITLE)
+            self.sign_in_banner.set_button_label("Sign in")
 
     def show_reminders(self, reminders: list[Reminder], now: datetime) -> None:
         """Show exactly these Reminders, keeping existing rows (and their selection)."""
@@ -171,6 +192,8 @@ class RemindersWindow(Adw.ApplicationWindow):
                 row = self._rows[reminder.meeting.key] = self.make_row(reminder)
                 self.list.insert(row, position)
             row.update(reminder, now)
+        # With only the sign-in entry showing, there is nothing to dismiss or snooze.
+        self.bottom.set_visible(bool(reminders))
         self._update_bottom()
 
     def row(self, key: str) -> ReminderRow | None:
