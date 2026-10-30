@@ -4,7 +4,7 @@ Outlook-style meeting reminders for a Microsoft 365 work calendar on Ubuntu (GNO
 
 When a meeting's reminder is due, a small **Reminders** window lists it with Snooze and Dismiss, and a desktop notification with a short chime makes sure you notice it. Terms are defined in [CONTEXT.md](CONTEXT.md) and the requirements are in [docs/requirements.md](docs/requirements.md).
 
-For now the calendar is read from a published ICS link. Reading it through Microsoft Graph comes later, once the app registration is approved ([ADR 0001](docs/adr/0001-microsoft-graph-with-own-app-registration.md)).
+The calendar is read through Microsoft Graph with your work sign-in, once IT has approved the app ([ADR 0001](docs/adr/0001-microsoft-graph-with-own-app-registration.md), [IT approval request](docs/it-approval.md)). Until then a published ICS link stands in.
 
 ## Install
 
@@ -21,10 +21,39 @@ cd outlook-reminder
 
 ## Configure
 
-Edit `~/.config/outlook-reminder/config.toml`:
+Edit `~/.config/outlook-reminder/config.toml`. Pick one of the two calendar sources.
+
+### Microsoft Graph (once IT approved the app)
+
+IT gives you two IDs after registering the app ([what to ask for](docs/it-approval.md)):
 
 ```toml
 [calendar]
+source = "graph"
+
+[graph]
+client_id = "00000000-0000-0000-0000-000000000000"   # Application (client) ID
+tenant_id = "00000000-0000-0000-0000-000000000000"   # Directory (tenant) ID
+
+[sound]
+chime = true
+```
+
+Then sign in once:
+
+```sh
+outlook-reminder --sign-in
+```
+
+Your browser opens the normal Microsoft sign-in page (with MFA as usual) and returns to the app on `http://localhost`. The app only asks to read your calendar (`Calendars.Read`, `User.Read`, `offline_access`) and never changes anything in Outlook. The sign-in is kept in the GNOME keyring and renewed by itself. If you skip this step, the app opens the browser sign-in itself on its first start.
+
+When the sign-in expires or is revoked (for example after a password change), the Reminders window shows **Sign in to keep getting reminders** with a **Sign in** button, and one notification is sent. Reminders for meetings it already knows keep coming; new and changed meetings are picked up again once you sign in.
+
+### Published ICS link
+
+```toml
+[calendar]
+source = "ics"
 # Outlook on the web: Settings > Calendar > Shared calendars > Publish a calendar,
 # then copy the ICS link.
 ics_url = "https://outlook.office365.com/owa/calendar/.../calendar.ics"
@@ -40,6 +69,7 @@ chime = true   # false mutes the chime
 ```sh
 outlook-reminder           # runs in the background; the window opens when a reminder is due
 outlook-reminder --check   # reads the calendar once and prints the upcoming reminders
+outlook-reminder --sign-in # signs in to Microsoft 365 in the browser (source = "graph")
 ```
 
 The calendar is read every 5 minutes, and right after the laptop wakes up or the network changes. Closing the Reminders window only hides it; it comes back with the next due reminder.
@@ -78,6 +108,7 @@ rm -rf ~/.local/state/outlook-reminder
 rm -rf ~/.local/share/outlook-reminder ~/.local/bin/outlook-reminder \
        ~/.local/share/applications/io.github.joepboumans.OutlookReminder.desktop
 rm -rf ~/.config/outlook-reminder   # also removes your config
+# The Graph sign-in is in the keyring: open Passwords and Keys and delete the "outlook-reminder" entry.
 ```
 
 ## Development
@@ -88,7 +119,7 @@ uv run pytest            # tests
 uv run pyright           # type check
 ```
 
-The reminder logic (`reminders.py`, `snooze.py`, `state.py`, `ics.py`, `teams.py`) is built test-first against a fake calendar source and a fake clock in `tests/fakes.py`. The GTK window (`window.py`, `app.py`) is a thin layer checked by hand.
+The reminder logic (`reminders.py`, `snooze.py`, `state.py`, `ics.py`, `teams.py`) is built test-first against a fake calendar source and a fake clock in `tests/fakes.py`. The Graph source (`graph.py`) is tested against recorded calendar responses in `tests/data/graph/`, and the sign-in (`auth.py`) against a fake MSAL client. The GTK window (`window.py`, `app.py`) is a thin layer checked by hand.
 
 GTK comes from the system, so to run the app from the checkout, make the venv see the system packages first:
 

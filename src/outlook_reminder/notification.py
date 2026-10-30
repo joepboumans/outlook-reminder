@@ -22,6 +22,14 @@ def notification_text(reminder: Reminder) -> tuple[str, str]:
     return m.title, " · ".join(part for part in (when, m.location) if part)
 
 
+def sign_in_notification_text() -> tuple[str, str]:
+    """The one notification sent when the Microsoft 365 sign-in has expired."""
+    return (
+        "Sign in to keep getting reminders",
+        "Your Microsoft 365 sign-in has expired, so new meetings are not picked up.",
+    )
+
+
 def has_join(reminder: Reminder) -> bool:
     """The Reminder notification and the Reminders window offer Join only with a Teams link."""
     return reminder.meeting.teams_url is not None
