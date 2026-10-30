@@ -12,6 +12,7 @@ import recurring_ical_events
 
 from .model import Meeting, Response
 from .source import CalendarUnavailable
+from .teams import find_teams_url
 
 FETCH_TIMEOUT_SECONDS = 30
 
@@ -70,7 +71,14 @@ def _meeting(event: icalendar.Component, recurring: set[str], alarms_known: bool
         cancelled=str(event.get("STATUS", "")).upper() == "CANCELLED"
         or title.lower().startswith(CANCELLED_PREFIXES),
         all_day=all_day,
+        teams_url=_teams_url(event),
     )
+
+
+def _teams_url(event: icalendar.Component) -> str | None:
+    """Outlook's own Teams property first, then any join link in the other text fields."""
+    fields = ("X-MICROSOFT-SKYPETEAMSMEETINGURL", "URL", "LOCATION", "DESCRIPTION", "X-ALT-DESC")
+    return find_teams_url(*(str(event.get(f, "")) for f in fields))
 
 
 def _response(event: icalendar.Component, me: str | None) -> Response:

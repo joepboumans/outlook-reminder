@@ -1,10 +1,11 @@
 import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from outlook_reminder.model import Meeting
-from outlook_reminder.notification import notification_text
+from outlook_reminder.notification import has_join, notification_text
 from outlook_reminder.reminders import Reminder
 
 START = datetime(2026, 10, 27, 9, 0, tzinfo=UTC)
@@ -35,3 +36,10 @@ def test_notification_without_location_shows_only_the_start_time():
 
 def test_all_day_notification_shows_the_day():
     assert notification_text(reminder(all_day=True))[1] == "Tue 27 Oct · All day"
+
+
+def test_join_is_offered_only_for_meetings_with_a_teams_link():
+    plain = reminder()
+    assert not has_join(plain)
+    teams = Reminder(replace(plain.meeting, teams_url="https://teams.microsoft.com/meet/1?p=x"), plain.due_at)
+    assert has_join(teams)

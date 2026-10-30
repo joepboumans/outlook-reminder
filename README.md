@@ -17,7 +17,7 @@ cd outlook-reminder
 ./install.sh
 ```
 
-`install.sh` installs [uv](https://docs.astral.sh/uv/) if you don't have it, installs the app into `~/.local/share/outlook-reminder`, links `outlook-reminder` into `~/.local/bin`, adds a desktop entry (GNOME needs it to show the notifications) and writes a default config file if there is none. Run it again after a `git pull` to upgrade; your config is kept.
+`install.sh` installs [uv](https://docs.astral.sh/uv/) if you don't have it, installs the app into `~/.local/share/outlook-reminder`, links `outlook-reminder` into `~/.local/bin`, adds a desktop entry (GNOME needs it to show the notifications), writes a default config file if there is none, and sets the app up to start when you log in. Run it again after a `git pull` to upgrade; your config and your snoozes and dismisses are kept.
 
 ## Configure
 
@@ -42,7 +42,23 @@ outlook-reminder           # runs in the background; the window opens when a rem
 outlook-reminder --check   # reads the calendar once and prints the upcoming reminders
 ```
 
-The calendar is read every 5 minutes. Closing the Reminders window only hides it; it comes back with the next due reminder.
+The calendar is read every 5 minutes, and right after the laptop wakes up or the network changes. Closing the Reminders window only hides it; it comes back with the next due reminder.
+
+Reminders that came due while the laptop was asleep or off are shown when it is back, unless the meeting has already ended. Snoozes and dismisses are saved in `~/.local/state/outlook-reminder/state.json`, so they survive a restart; nothing is changed in Outlook. Moving a meeting to a new time gives it a fresh reminder.
+
+Meetings with a Teams link get a **Join** button, in the Reminders window and in the notification. It opens the meeting in [Teams for Linux](https://github.com/IsmaelMartinez/teams-for-linux) through its `msteams:` link; without Teams for Linux installed, the link opens in your browser.
+
+### Start on login
+
+`install.sh` adds a systemd user service, `outlook-reminder.service`, that starts the app when you log in to your desktop and restarts it if it crashes. To manage it:
+
+```sh
+systemctl --user start outlook-reminder     # start it now
+systemctl --user stop outlook-reminder      # stop it until the next login
+systemctl --user disable outlook-reminder   # stop starting it on login
+systemctl --user status outlook-reminder    # is it running?
+journalctl --user -u outlook-reminder       # its log
+```
 
 ### What gets a reminder
 
@@ -55,6 +71,10 @@ Limits of the ICS link: many published calendars leave out reminder times. When 
 ## Uninstall
 
 ```sh
+systemctl --user disable --now outlook-reminder
+rm -f ~/.config/systemd/user/outlook-reminder.service
+systemctl --user daemon-reload
+rm -rf ~/.local/state/outlook-reminder
 rm -rf ~/.local/share/outlook-reminder ~/.local/bin/outlook-reminder \
        ~/.local/share/applications/io.github.joepboumans.OutlookReminder.desktop
 rm -rf ~/.config/outlook-reminder   # also removes your config
@@ -68,7 +88,7 @@ uv run pytest            # tests
 uv run pyright           # type check
 ```
 
-The reminder logic (`reminders.py`, `snooze.py`, `ics.py`) is built test-first against a fake calendar source and a fake clock in `tests/fakes.py`. The GTK window (`window.py`, `app.py`) is a thin layer checked by hand.
+The reminder logic (`reminders.py`, `snooze.py`, `state.py`, `ics.py`, `teams.py`) is built test-first against a fake calendar source and a fake clock in `tests/fakes.py`. The GTK window (`window.py`, `app.py`) is a thin layer checked by hand.
 
 GTK comes from the system, so to run the app from the checkout, make the venv see the system packages first:
 

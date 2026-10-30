@@ -11,6 +11,7 @@ from .clock import SystemClock
 from .config import DEFAULT_CONFIG, ConfigError, default_config_path, load_config
 from .ics import IcsSource
 from .reminders import ReminderBoard
+from .state import JsonStateStore, default_state_path
 from .text import start_time
 
 
@@ -35,7 +36,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"outlook-reminder: {e}", file=sys.stderr)
         return 2
 
-    board = ReminderBoard(IcsSource(config.ics_url, me=config.email), SystemClock())
+    board = ReminderBoard(IcsSource(config.ics_url, me=config.email), SystemClock(),
+                          store=JsonStateStore(default_state_path()))
     if args.check:
         return _check(board)
 
