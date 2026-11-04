@@ -13,7 +13,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
-from .notification import has_join, notification_text, play_chime  # noqa: E402
+from .notification import has_join, notification_text, play_chime, sign_in_notification_text  # noqa: E402
 from .reminders import Reminder, ReminderBoard  # noqa: E402
 from .snooze import SnoozeChoice  # noqa: E402
 from .teams import msteams_uri  # noqa: E402
@@ -36,6 +36,11 @@ class ReminderApp(Adw.Application):
         self._reading = False
         self._notified: set[str] = set()
         self._last_timer = time.time()
+        # The browser sign-in is running, then the calendar read right after it.
+        self._signing_in = False
+        self._finishing_sign_in = False
+        self._first_sign_in_tried = False
+        self._sign_in_notified = False
 
         show = Gio.SimpleAction.new("show-reminders", None)
         show.connect("activate", lambda *_: self._present())
@@ -43,6 +48,9 @@ class ReminderApp(Adw.Application):
         join = Gio.SimpleAction.new("join", GLib.VariantType.new("s"))
         join.connect("activate", lambda _action, key: self.join(key.get_string()))
         self.add_action(join)
+        sign_in = Gio.SimpleAction.new("sign-in", None)
+        sign_in.connect("activate", lambda *_: self.sign_in())
+        self.add_action(sign_in)
 
     # The app runs in the background with no window until a Reminder is due.
     def do_startup(self) -> None:
@@ -81,7 +89,7 @@ class ReminderApp(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self) -> None:
-        if self._board.due:
+        if self._board.due or self._board.needs_sign_in:
             self._present()
 
     @property
@@ -99,7 +107,8 @@ class ReminderApp(Adw.Application):
         if wall - self._last_timer > SLEEP_GAP_SECONDS:
             self._board.read_soon()
         self._last_timer = wall
-        if self._board.calendar_read_due() and not self._reading:
+        # No reads while the browser sign-in runs; it asks for one when it is done.
+        if self._board.calendar_read_due() and not self._reading and not self._signing_in:
             self._read_calendar_in_background()
         self.on_newly_due(self._board.tick(read_calendar=False))
         self.update_window()
@@ -119,7 +128,46 @@ class ReminderApp(Adw.Application):
 
     def _after_read(self) -> bool:
         self._reading = False
+        # The read after a sign-in is done; the window may now hide if nothing is due.
+        self._finishing_sign_in = False
         self.on_newly_due(self._board.tick(read_calendar=False))
+        if self._board.never_signed_in and not self._first_sign_in_tried:
+            # First run: nobody has signed in yet, so open the browser sign-in right away
+            # instead of sending the notification.
+            self._first_sign_in_tried = True
+            self._board.take_sign_in_notice()
+            self.sign_in()
+            self._present()
+        elif self._board.take_sign_in_notice():
+            self.send_notification(SIGN_IN_NOTIFICATION, _sign_in_notification())
+            self._sign_in_notified = True
+            self._present()
+        self.update_window()
+        return GLib.SOURCE_REMOVE
+
+    def sign_in(self) -> None:
+        """Start the browser sign-in on a worker thread; once done, read the calendar."""
+        if self._signing_in or self._finishing_sign_in:
+            return
+        self._signing_in = True
+        self.update_window()
+
+        def work() -> None:
+            try:
+                self._board.sign_in()
+            except Exception:
+                log.exception("Signing in failed")
+            GLib.idle_add(self._after_sign_in)
+
+        threading.Thread(target=work, name="sign-in", daemon=True).start()
+
+    def _after_sign_in(self) -> bool:
+        self._signing_in = False
+        self._board.read_soon()
+        if not self._reading:
+            # Keep the window as it is until this read is done, instead of hiding it in between.
+            self._finishing_sign_in = True
+            self._read_calendar_in_background()
         self.update_window()
         return GLib.SOURCE_REMOVE
 
@@ -138,15 +186,21 @@ class ReminderApp(Adw.Application):
         for key in self._notified - {r.meeting.key for r in due}:
             self.withdraw_notification(_notification_id(key))
         self._notified = {r.meeting.key for r in due}
-        if not due:
+        needs_sign_in = self._board.needs_sign_in
+        if not needs_sign_in and self._sign_in_notified:
+            self.withdraw_notification(SIGN_IN_NOTIFICATION)
+            self._sign_in_notified = False
+        busy = self._signing_in or self._finishing_sign_in
+        if not due and not needs_sign_in and not busy:
             if self._window is not None:
                 self._window.set_visible(False)
             return
+        self.window.show_sign_in(needs_sign_in or busy, signing_in=busy)
         self.window.show_reminders(due, self._board.now())
 
     def _present(self) -> None:
         self.update_window()
-        if self._board.due:
+        if self._board.due or self._board.needs_sign_in:
             self.window.present()
 
     # Actions asked for by the Reminders window.
@@ -179,6 +233,19 @@ class ReminderApp(Adw.Application):
             Gio.AppInfo.launch_default_for_uri(uri, None)
         except GLib.Error as e:
             log.warning("Could not open the Teams meeting %s: %s", uri, e.message)
+
+
+SIGN_IN_NOTIFICATION = "sign-in"
+
+
+def _sign_in_notification() -> Gio.Notification:
+    title, body = sign_in_notification_text()
+    notification = Gio.Notification.new(title)
+    notification.set_body(body)
+    notification.set_priority(Gio.NotificationPriority.HIGH)
+    notification.set_default_action("app.show-reminders")
+    notification.add_button("Sign in", "app.sign-in")
+    return notification
 
 
 def _notification_id(key: str) -> str:

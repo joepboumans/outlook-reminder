@@ -105,7 +105,7 @@ case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "Note: $BIN_DIR is not on your PATH yet; log out and in, or run $BIN_DIR/outlook-reminder." ;;
 esac
-echo "Put your ICS link in ${XDG_CONFIG_HOME:-$HOME/.config}/outlook-reminder/config.toml."
+echo "Set up your calendar (Microsoft Graph IDs or ICS link) in ${XDG_CONFIG_HOME:-$HOME/.config}/outlook-reminder/config.toml."
 if [[ $SERVICE_OK == 1 ]]; then
     echo "The app starts by itself from your next login. To start it now: systemctl --user start outlook-reminder"
 else

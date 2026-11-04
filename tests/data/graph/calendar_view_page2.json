@@ -1,0 +1,73 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/calendar/calendarView(id,subject,start,end,isAllDay,location,isReminderOn,reminderMinutesBeforeStart,responseStatus,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,onlineMeetingUrl,body)",
+  "value": [
+    {
+      "id": "AAMkAGI2TGuLAAD=",
+      "subject": "Budget sync",
+      "isAllDay": false,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 15,
+      "isCancelled": false,
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-28T08:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-28T09:00:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": "Room 2"},
+      "responseStatus": {"response": "declined", "time": "2026-10-21T08:00:00.0000000Z"},
+      "body": {"contentType": "text", "content": ""},
+      "onlineMeeting": null
+    },
+    {
+      "id": "AAMkAGI2TGuLAAE=",
+      "subject": "Geannuleerd: Retro",
+      "isAllDay": false,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 15,
+      "isCancelled": true,
+      "isOnlineMeeting": true,
+      "onlineMeetingProvider": "teamsForBusiness",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-28T14:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-28T15:00:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": "Microsoft Teams Meeting"},
+      "responseStatus": {"response": "accepted", "time": "2026-10-21T08:00:00.0000000Z"},
+      "body": {"contentType": "text", "content": ""},
+      "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_retro%40thread.v2/0"}
+    },
+    {
+      "id": "AAMkAGI2TGuLAAF=",
+      "subject": "Joep off",
+      "isAllDay": true,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 1080,
+      "isCancelled": false,
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-29T00:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-30T00:00:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": ""},
+      "responseStatus": {"response": "organizer", "time": "0001-01-01T00:00:00Z"},
+      "body": {"contentType": "text", "content": ""},
+      "onlineMeeting": null
+    },
+    {
+      "id": "AAMkAGI2TGuLAAG=",
+      "subject": "Customer call",
+      "isAllDay": false,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 15,
+      "isCancelled": false,
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-29T15:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-29T16:00:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": "https://teams.microsoft.com/meet/3456789?p=abcdef"},
+      "responseStatus": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+      "body": {"contentType": "text", "content": "Dial in or join below"},
+      "onlineMeeting": null
+    }
+  ]
+}

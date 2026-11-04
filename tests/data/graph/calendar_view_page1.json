@@ -1,0 +1,59 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/calendar/calendarView(id,subject,start,end,isAllDay,location,isReminderOn,reminderMinutesBeforeStart,responseStatus,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,onlineMeetingUrl,body)",
+  "value": [
+    {
+      "@odata.etag": "W/\"DwAAABYAAAB2wZ0Xj3lkTZ1v0pZ0ZbNrAAAPmGfH\"",
+      "id": "AAMkAGI2TGuLAAA=",
+      "subject": "Design review",
+      "isAllDay": false,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 10,
+      "isCancelled": false,
+      "isOnlineMeeting": true,
+      "onlineMeetingProvider": "teamsForBusiness",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-27T09:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-27T09:30:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": "Microsoft Teams Meeting", "locationType": "default", "uniqueIdType": "unknown"},
+      "responseStatus": {"response": "accepted", "time": "2026-10-20T12:01:00.0000000Z"},
+      "body": {"contentType": "text", "content": "Agenda: the new reminders window.\r\n________________\r\nMicrosoft Teams meeting\r\nJoin: https://teams.microsoft.com/l/meetup-join/19%3ameeting_body%40thread.v2/0?context=%7b%7d\r\n"},
+      "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0?context=%7b%22Tid%22%3a%22t%22%7d"}
+    },
+    {
+      "@odata.etag": "W/\"DwAAABYAAAB2wZ0Xj3lkTZ1v0pZ0ZbNrAAAPmGfI\"",
+      "id": "AAMkAGI2TGuLAAB=_occurrence_20261027",
+      "subject": "Daily standup",
+      "isAllDay": false,
+      "isReminderOn": true,
+      "reminderMinutesBeforeStart": 5,
+      "isCancelled": false,
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-27T10:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-27T10:15:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": "Room 4.12", "locationType": "default"},
+      "responseStatus": {"response": "tentativelyAccepted", "time": "0001-01-01T00:00:00Z"},
+      "body": {"contentType": "text", "content": ""},
+      "onlineMeeting": null
+    },
+    {
+      "id": "AAMkAGI2TGuLAAC=",
+      "subject": "Focus time",
+      "isAllDay": false,
+      "isReminderOn": false,
+      "reminderMinutesBeforeStart": 15,
+      "isCancelled": false,
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeetingUrl": null,
+      "start": {"dateTime": "2026-10-27T13:00:00.0000000", "timeZone": "UTC"},
+      "end": {"dateTime": "2026-10-27T15:00:00.0000000", "timeZone": "UTC"},
+      "location": {"displayName": ""},
+      "responseStatus": {"response": "organizer", "time": "0001-01-01T00:00:00Z"},
+      "body": {"contentType": "text", "content": ""},
+      "onlineMeeting": null
+    }
+  ],
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendar/calendarView?startDateTime=2026-10-26T08%3A00%3A00Z&endDateTime=2026-11-10T08%3A00%3A00Z&%24select=id&%24orderby=start%2FdateTime&%24skip=3"
+}

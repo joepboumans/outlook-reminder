@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from .clock import Clock
 from .model import Meeting, Response
 from .snooze import SNOOZE_CHOICES, SnoozeChoice, choice
-from .source import CalendarSource, CalendarUnavailable
+from .source import CalendarSource, CalendarUnavailable, SignInFailed, SignInRequired, SignInSource
 from .state import Dismissed, MemoryStateStore, Snoozed, StateStore
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,9 @@ class ReminderBoard:
         # were made for, so moving the Meeting discards them.
         self._state = self._store.load()
         self._last_read: datetime | None = None
+        # Set while the calendar can't be read until the user signs in again.
+        self._sign_in: SignInRequired | None = None
+        self._sign_in_announced = False
 
     def refresh(self) -> bool:
         """Read the calendar now. Keeps the last known Meetings if it can't be read.
@@ -59,10 +62,53 @@ class ReminderBoard:
         self._last_read = now
         try:
             self._meetings = self._source.meetings(now - READ_BEHIND, now + READ_AHEAD)
+        except SignInRequired as e:
+            log.warning("Sign-in needed, keeping last known meetings: %s", e)
+            self._sign_in = e
+            return False
         except CalendarUnavailable as e:
             log.warning("Calendar unavailable, keeping last known meetings: %s", e)
             return False
+        self._signed_in()
         return True
+
+    # Sign-in (Graph only): an expired sign-in shows as an entry in the Reminders window.
+    @property
+    def needs_sign_in(self) -> bool:
+        """The calendar can't be read until the user signs in (again)."""
+        return self._sign_in is not None
+
+    @property
+    def never_signed_in(self) -> bool:
+        """Sign-in is needed because there has never been one (first run)."""
+        return self._sign_in is not None and self._sign_in.never_signed_in
+
+    def take_sign_in_notice(self) -> bool:
+        """True exactly once each time sign-in becomes needed, for its one notification."""
+        if self._sign_in is None or self._sign_in_announced:
+            return False
+        self._sign_in_announced = True
+        return True
+
+    def sign_in(self) -> bool:
+        """Run the source's browser sign-in (blocks). Returns whether it worked.
+
+        After a successful sign-in the entry goes away and the next tick reads the calendar.
+        """
+        if not isinstance(self._source, SignInSource):
+            return False
+        try:
+            self._source.sign_in()
+        except SignInFailed as e:
+            log.warning("Sign-in failed: %s", e)
+            return False
+        self._signed_in()
+        self.read_soon()
+        return True
+
+    def _signed_in(self) -> None:
+        self._sign_in = None
+        self._sign_in_announced = False
 
     def calendar_read_due(self) -> bool:
         """True when the calendar should be read again."""
