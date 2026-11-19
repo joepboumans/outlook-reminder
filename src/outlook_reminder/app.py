@@ -57,7 +57,10 @@ class ReminderApp(Adw.Application):
         Adw.Application.do_startup(self)
         self.hold()
         GLib.timeout_add_seconds(TICK_SECONDS, self._on_timer)
-        GLib.idle_add(self._on_timer)
+        # Once right away; _on_timer itself returns SOURCE_CONTINUE, which as an idle
+        # callback would run it again on every main loop pass (100% CPU).
+        GLib.idle_add(self._on_timer_once)
+        log.info("Started; checking reminders every %d s", TICK_SECONDS)
         self._watch_resume_and_network()
 
     def _watch_resume_and_network(self) -> None:
@@ -80,7 +83,7 @@ class ReminderApp(Adw.Application):
             self._read_soon("resume")
 
     def _read_soon(self, why: str) -> None:
-        log.debug("Reading the calendar after %s", why)
+        log.info("Reading the calendar after %s", why)
         self._board.read_soon()
         GLib.idle_add(self._on_timer_once)
 
@@ -105,6 +108,7 @@ class ReminderApp(Adw.Application):
         # GLib timers stop during suspend, so a jump in wall-clock time means we just woke up.
         wall = time.time()
         if wall - self._last_timer > SLEEP_GAP_SECONDS:
+            log.info("Woke up after %d s; reading the calendar", wall - self._last_timer)
             self._board.read_soon()
         self._last_timer = wall
         # No reads while the browser sign-in runs; it asks for one when it is done.
@@ -150,6 +154,7 @@ class ReminderApp(Adw.Application):
         if self._signing_in or self._finishing_sign_in:
             return
         self._signing_in = True
+        log.info("Opening the browser to sign in")
         self.update_window()
 
         def work() -> None:
@@ -174,6 +179,7 @@ class ReminderApp(Adw.Application):
     def on_newly_due(self, reminders: list[Reminder]) -> None:
         """One Reminder notification for each Reminder that just became due, and one chime."""
         for reminder in reminders:
+            log.info("Reminder due: %s at %s", reminder.meeting.title, reminder.meeting.start)
             self.send_notification(_notification_id(reminder.meeting.key), _notification(reminder))
         if reminders:
             if self._chime:
@@ -205,15 +211,18 @@ class ReminderApp(Adw.Application):
 
     # Actions asked for by the Reminders window.
     def dismiss(self, keys: list[str]) -> None:
+        log.info("Dismissed %d reminder(s)", len(keys))
         for key in keys:
             self._board.dismiss(key)
         self.update_window()
 
     def dismiss_all(self) -> None:
+        log.info("Dismissed all reminders")
         self._board.dismiss_all()
         self.update_window()
 
     def snooze(self, keys: list[str], choice: SnoozeChoice) -> None:
+        log.info("Snoozed %d reminder(s): %s", len(keys), choice.label)
         self._board.snooze(keys, choice)
         self.update_window()
 
@@ -230,6 +239,7 @@ class ReminderApp(Adw.Application):
         # Teams for Linux registers the msteams: scheme; without it, use the browser.
         uri = msteams_uri(url) if Gio.AppInfo.get_default_for_uri_scheme("msteams") else url
         try:
+            log.info("Joining the Teams meeting")
             Gio.AppInfo.launch_default_for_uri(uri, None)
         except GLib.Error as e:
             log.warning("Could not open the Teams meeting %s: %s", uri, e.message)
