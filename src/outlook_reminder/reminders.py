@@ -69,6 +69,7 @@ class ReminderBoard:
         except CalendarUnavailable as e:
             log.warning("Calendar unavailable, keeping last known meetings: %s", e)
             return False
+        log.info("Read the calendar: %d meeting(s)", len(self._meetings))
         self._signed_in()
         return True
 
@@ -102,6 +103,7 @@ class ReminderBoard:
         except SignInFailed as e:
             log.warning("Sign-in failed: %s", e)
             return False
+        log.info("Signed in")
         self._signed_in()
         self.read_soon()
         return True
